@@ -72,6 +72,9 @@ async def create_delete_task(payload = Body(...)):
     task = add_delete_task.delay(ts_list, channel, token)
     return JSONResponse({"task_id": task.id})
 
+@app.options('/messages/delete')
+async def allow_options():
+    return JSONResponse({})
 
 @app.get("/tasks/{task_id}")
 def get_status(task_id):
