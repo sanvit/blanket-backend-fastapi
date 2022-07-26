@@ -7,4 +7,4 @@ RUN pip install -r requirements.txt
 RUN chmod +x /app/run.sh
 EXPOSE 8000
 
-ENTRYPOINT ["/usr/bin/python"]
+ENTRYPOINT ["/usr/local/bin/python"]
