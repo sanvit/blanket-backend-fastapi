@@ -52,21 +52,25 @@ async def get_dm_user_list(token):
 
 @app.post('/conversation/{channel}')
 async def get_conversation(token, channel):
+    """
+    :param token: 토큰값    <br>
+    :param channel: /users 에서 받은 id 값
+    """
     headers = {"Authorization": f"Bearer {token}"}
     url = f'https://slack.com/api/conversations.history?channel={channel}'
     rsp = requests.post(url=url, headers=headers).json()
     return rsp
 
 
-@app.post('/messages')
+@app.post('/messages/delete')
 async def create_delete_task(payload = Body(...)):
-    ids = payload['ids']
-    from tasks import delete_message
-    for id in ids:
-        print('creating task...')
-        task = delete_message.delay(id)
-        return JSONResponse({"task_id": task.id})
-    return {"success": "ok"}
+    ts_list = payload.get('ts_list')
+    channel = payload.get('channel')
+    token = payload.get('token')
+    from tasks import add_delete_task
+    print('creating task...')
+    task = add_delete_task.delay(ts_list, channel, token)
+    return JSONResponse({"task_id": task.id})
 
 
 @app.get("/tasks/{task_id}")
