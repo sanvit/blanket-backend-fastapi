@@ -1,12 +1,18 @@
+from calendar import c
 from typing import Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from enum import Enum
 import requests
 from fastapi import Body
-
+import datetime
+import time as t
+import pusher
+pusher_client = pusher.Pusher(app_id=u'4444', key=u'blanket', secret=u'blanket',
+                              ssl=True, host=u'linode-tyo2-1.soketi.sanvit.net', port=443)
+sent_ids = []
 
 app = FastAPI()
 origins = ["*"]
@@ -19,79 +25,155 @@ app.add_middleware(
 )
 
 
-@app.post('/users')
-async def get_dm_user_list(token):
-    headers = {"Authorization": f"Bearer {token}"}
-    url = 'https://slack.com/api/conversations.list?types=im'
-    rsp = requests.post(url=url, headers=headers).json()
-    users_dict = dict()
-    if rsp.get('ok'):
-        channels = rsp.get('channels')  # user값과 id 값이 있음
-        for e in channels:
-            user = e['user']
-            users_dict[user] = {'id': e['id']}
-    print('users dict:', users_dict)
-    url = 'https://slack.com/api/users.list'
-    rsp = requests.post(url=url, headers=headers).json()
-    print(rsp)
-    if rsp.get('ok'):
-        members = rsp.get('members')  # 프로필 정보 있음
-        print('members:', members)
-        for e in members:
-            id = e['id']  # member의 id값
-            print('id:', id)
-            if not e['is_bot'] and not e['deleted']:
-                print('is bot:', e['is_bot'])
-                profile = e['profile']  # 개별 profile
-                print(profile.get('real_name'))
-                print('--------------------------------')
-                if id in users_dict:  # 대화목록에 id가 없는 경우가 있음
-                    users_dict[id]['real_name'] = profile['real_name']
-                    if profile.get('image_original'):
-                        users_dict[id]['image_original'] = profile['image_original']
-                    else:
-                        users_dict[id]['image_original'] = profile['image_32']
-            else:
-                if id in users_dict:
-                    del users_dict[id]
+@app.get("/message/{sos_id}")
+async def send_message(sos_id):
+    pusher_client.trigger(u'blanket', u'sos', {
+        'id': sos_id,
+        'lat': 123.4567,
+        'lng': 12.34567,
+        'user_info': {
+            'name': '김철수',
+            'age': 20,
+            'phone': '010-1234-5678',
+            'family_contact': '010-1234-5678',
+            'family_contact_name': '김철수',
+        }
+    })
+    return {"response.json()": "response.json()"}
 
 
-    return users_dict
+@app.post("/message")
+async def send_message(request: Request):
+    # get request body
+    body = await request.json()
+
+    print(body)
+    pusher_client.trigger(u'blanket', u'sos', body)
+    return body
 
 
-@app.post('/conversation/{channel}')
-async def get_conversation(token, channel):
-    """
-    :param token: 토큰값    <br>
-    :param channel: /users 에서 받은 id 값
-    """
-    headers = {"Authorization": f"Bearer {token}"}
-    url = f'https://slack.com/api/conversations.history?channel={channel}'
-    rsp = requests.post(url=url, headers=headers).json()
-    return rsp
+def get_now_in_kst(timedelta=0):
+    if isinstance(timedelta, int):
+        timedelta = datetime.timedelta(seconds=timedelta)
+    return datetime.datetime.now() + datetime.timedelta(hours=9) + timedelta
 
 
-@app.post('/messages/delete')
-async def create_delete_task(payload = Body(...)):
-    ts_list = payload.get('ts_list')
-    channel = payload.get('channel')
-    token = payload.get('token')
-    from tasks import add_delete_task
-    print('creating task...')
-    task = add_delete_task.delay(ts_list, channel, token)
-    return JSONResponse({"task_id": task.id})
+def convert_time(time, timedelta=0):
+    if isinstance(timedelta, int):
+        timedelta = datetime.timedelta(seconds=timedelta)
+    return (time + timedelta).strftime("%Y-%m-%d %H:%M:%S")
 
-@app.options('/messages/delete')
-async def allow_options():
-    return JSONResponse({})
 
-@app.get("/tasks/{task_id}")
-def get_status(task_id):
-    from tasks import celery
-    task_result = celery.AsyncResult(task_id)
-    result = {
-        "task_id": task_id,
-        "task_status": task_result.status,
-        "task_result": task_result.result
+@app.get("/lora")
+async def send_message():
+    time = get_now_in_kst()
+    data1 = {
+        "id": "12",
+        "user_info": {
+            "name": "김재원",
+            "age": 20,
+            "sex": "male",
+            "phone": "010-1234-5678",
+            "family_contact": "010-1234-5678",
+            "family_contact_name": "김철수"
+        },
+        "location": [
+            {
+                "lat": 37.65940344029378,
+                "lng": 126.9754864528261,
+                "date": convert_time(time)
+            }
+        ]
     }
-    return JSONResponse(result)
+    data2 = {
+        "id": "12",
+        "user_info": {
+            "name": "김재원",
+            "age": 20,
+            "sex": "male",
+            "phone": "010-1234-5678",
+            "family_contact": "010-1234-5678",
+            "family_contact_name": "김철수"
+        },
+        "location": [
+            {
+                "lat": 37.65940344029378,
+                "lng": 126.9754864528261,
+                "date": convert_time(time)
+            },
+            {
+                "lat": 37.65972619464464,
+                "lng": 126.9772030666551,
+                "date": convert_time(time, 5)
+            }
+        ]
+    }
+    data3 = {
+        "id": "12",
+        "user_info": {
+            "name": "김재원",
+            "age": 20,
+            "sex": "male",
+            "phone": "010-1234-5678",
+            "family_contact": "010-1234-5678",
+            "family_contact_name": "김철수"
+        },
+        "location": [
+            {
+                "lat": 37.65940344029378,
+                "lng": 126.9754864528261,
+                "date": convert_time(time)
+            },
+            {
+                "lat": 37.65972619464464,
+                "lng": 126.9772030666551,
+                "date": convert_time(time, 5)
+            },
+            {
+                "lat": 37.659216581870396,
+                "lng": 126.97893040932051,
+                "date": convert_time(time, 10)
+            }
+        ]
+    }
+    data4 = {
+        "id": "12",
+        "user_info": {
+            "name": "김재원",
+            "age": 20,
+            "sex": "male",
+            "phone": "010-1234-5678",
+            "family_contact": "010-1234-5678",
+            "family_contact_name": "김철수"
+        },
+        "location": [
+            {
+                "lat": 37.65940344029378,
+                "lng": 126.9754864528261,
+                "date": convert_time(time)
+            },
+            {
+                "lat": 37.65972619464464,
+                "lng": 126.9772030666551,
+                "date": convert_time(time, 5)
+            },
+            {
+                "lat": 37.659216581870396,
+                "lng": 126.97893040932051,
+                "date": convert_time(time, 10)
+            },
+            {
+                "lat": 37.65941193384732,
+                "lng": 126.98022859852867,
+                "date": convert_time(time, 15)
+            }
+        ]
+    }
+    pusher_client.trigger(u'blanket', u'sos', data1)
+    t.sleep(5)
+    pusher_client.trigger(u'blanket', u'sos', data2)
+    t.sleep(5)
+    pusher_client.trigger(u'blanket', u'sos', data3)
+    t.sleep(5)
+    pusher_client.trigger(u'blanket', u'sos', data4)
+    return {"success": True}
